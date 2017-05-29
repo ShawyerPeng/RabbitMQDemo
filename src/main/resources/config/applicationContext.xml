@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:int-amqp="http://www.springframework.org/schema/integration/amqp"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+       xsi:schemaLocation="http://www.springframework.org/schema/integration/amqp
+		http://www.springframework.org/schema/integration/amqp/spring-integration-amqp.xsd
+	    http://www.springframework.org/schema/integration
+	    http://www.springframework.org/schema/integration/spring-integration.xsd
+	    http://www.springframework.org/schema/integration/stream
+	    http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd
+	    http://www.springframework.org/schema/rabbit
+	    http://www.springframework.org/schema/rabbit/spring-rabbit.xsd
+	    http://www.springframework.org/schema/beans
+	    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	    http://www.springframework.org/schema/context
+	    http://www.springframework.org/schema/context/spring-context-3.0.xsd">
+
+	<context:component-scan base-package="SpringAMQP"/>
+
+	<bean id="messageListener" class="SpringAMQP.receiver.Receiver"/>
+	<bean id="message1Listener" class="SpringAMQP.receiver.Receiver1"/>
+	<bean id="message2Listener" class="SpringAMQP.receiver.Receiver2"/>
+	<bean id="message3Listener" class="SpringAMQP.receiver.Receiver3"/>
+
+	<bean id="sender" class="SpringAMQP.sender.Sender"/>
+	<bean id="messageConverter" class="org.springframework.amqp.support.converter.JsonMessageConverter"/>
+
+
+	<!-- admin -->
+	<rabbit:admin id="admin" connection-factory="rabbitConnectionFactory"/>
+	<!-- 1. Connection连接参数：hostname, port, username, password -->
+	<rabbit:connection-factory id="rabbitConnectionFactory" username="guest" password="guest" host="localhost" port="5672"/>
+	<!-- 2. Queue -->
+	<rabbit:queue id="masteringQueue" name="mastering.rabbitmq"/>
+	<rabbit:queue id="mastering1Queue" name="mastering1.rabbitmq"/>
+	<rabbit:queue id="mastering2Queue" name="mastering2.rabbitmq"/>
+	<rabbit:queue id="mastering3Queue" name="mastering3.rabbitmq"/>
+
+
+	<!-- 定义PubSub Exchange，将相关联的queues绑定 -->
+	<rabbit:fanout-exchange name="broadcast.responses" xmlns="http://www.springframework.org/schema/rabbit">
+		<rabbit:bindings>
+			<rabbit:binding queue="mastering1Queue"/>
+			<rabbit:binding queue="mastering2Queue"/>
+			<rabbit:binding queue="mastering3Queue"/>
+		</rabbit:bindings>
+	</rabbit:fanout-exchange>
+
+	<!-- 定义Topic Exchange，将相关联的queues绑定 -->
+	<!--<topic-exchange name="routing.responses" xmlns="http://www.springframework.org/schema/rabbit">-->
+		<!--<bindings>-->
+			<!--<binding queue="mastering1Queue" pattern="private"/>-->
+			<!--<binding queue="mastering2Queue" pattern="group"/>-->
+			<!--<binding queue="mastering3Queue" pattern="all"/>-->
+		<!--</bindings>-->
+	<!--</topic-exchange>-->
+
+	<rabbit:template id="rabbitTemplate1" connection-factory="rabbitConnectionFactory" queue="masteringQueue" message-converter="messageConverter"/>
+
+	<!-- 注入connection和queue -->
+	<rabbit:template id="rabbitTemplate2" connection-factory="rabbitConnectionFactory" exchange="broadcast.responses" message-converter="messageConverter"/>
+	<!--<rabbit:template id="rabbitTemplate3" connection-factory="rabbitConnectionFactory" exchange="routing.responses" message-converter="messageConverter"/>-->
+
+	<!-- 注入RabbitMQ template到senders、listeners -->
+	<rabbit:listener-container connection-factory="rabbitConnectionFactory" message-converter="messageConverter">
+		<rabbit:listener ref="message1Listener" queues="mastering1Queue"/>
+		<rabbit:listener ref="message2Listener" queues="mastering2Queue"/>
+		<rabbit:listener ref="message3Listener" queues="mastering3Queue"/>
+	</rabbit:listener-container>
+
+</beans>
